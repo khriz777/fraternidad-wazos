@@ -1,0 +1,1076 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema Fraternidad Wazos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        :root {
+            --wazos-red: #d32f2f;
+            --wazos-dark: #1a1a1a;
+            --wazos-gray: #f5f5f5;
+        }
+        body { font-family: 'Inter', sans-serif; background-color: var(--wazos-gray); }
+        .text-wazos-red { color: var(--wazos-red); }
+        .bg-wazos-red { background-color: var(--wazos-red); }
+        .bg-wazos-dark { background-color: var(--wazos-dark); }
+        
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .print-only { display: none; }
+        @media print {
+            body { background: white; }
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+            .print-container { width: 100%; max-width: 100%; margin: 0; padding: 0; box-shadow: none; border: none; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex overflow-hidden">
+
+    <aside id="sidebar" class="bg-wazos-dark text-white w-64 flex-shrink-0 hidden md:flex flex-col shadow-2xl z-20 transition-all duration-300">
+        <div class="p-6 text-center border-b border-gray-700 relative group cursor-pointer">
+            <div class="relative inline-block" onclick="triggerLogoUpload()">
+                <img id="main-logo" src="https://placehold.co/150x150/ffffff/D32F2F?text=WAZOS" alt="Logo Wazos" class="w-24 h-24 mx-auto rounded-full object-cover border-2 border-white shadow-lg transition-transform group-hover:scale-105">
+                <div class="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity admin-only hidden">
+                    <i class="fas fa-camera text-white text-xl"></i>
+                </div>
+            </div>
+            <input type="file" id="logo-upload" class="hidden" accept="image/*" onchange="handleLogoChange(event)">
+            <h1 class="text-2xl font-black mt-3 tracking-wider text-white">WAZOS</h1>
+            <p class="text-xs text-gray-400 uppercase tracking-widest font-bold">Fraternidad</p>
+        </div>
+
+        <nav class="flex-1 p-4 space-y-2 overflow-y-auto">
+            <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-btn w-full flex items-center gap-3 px-4 py-3 bg-wazos-red rounded-lg font-bold transition-all shadow-md">
+                <i class="fas fa-chart-pie w-5"></i> Dashboard / Diapositiva
+            </button>
+            <button onclick="switchView('actas')" id="nav-actas" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg font-bold transition-all text-gray-300 hover:text-white">
+                <i class="fas fa-book-open w-5"></i> Actas & Gastos
+            </button>
+            <button onclick="switchView('profiles')" id="nav-profiles" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg font-bold transition-all text-gray-300 hover:text-white">
+                <i class="fas fa-users w-5"></i> Perfiles Fraternos
+            </button>
+            <button onclick="switchView('add')" id="nav-add" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg font-bold transition-all text-gray-300 hover:text-white admin-only hidden">
+                <i class="fas fa-user-plus w-5"></i> Agregar Miembro
+            </button>
+            <button onclick="switchView('payment')" id="nav-payment" class="nav-btn w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg font-bold transition-all text-gray-300 hover:text-white admin-only hidden">
+                <i class="fas fa-file-invoice-dollar w-5"></i> Boleta de Pago
+            </button>
+            <button onclick="openBankConfigModal()" class="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-800 rounded-lg font-bold transition-all text-gray-300 hover:text-white admin-only hidden border-t border-gray-700 mt-4">
+                <i class="fas fa-university w-5"></i> Configurar Banco QR
+            </button>
+        </nav>
+
+        <div class="p-4 border-t border-gray-700">
+            <button id="admin-lock-btn" onclick="toggleAdminModal()" class="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-400 transition-colors">
+                <i class="fas fa-lock" id="lock-icon"></i> <span id="lock-text">Modo Vista</span>
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 relative">
+        <header id="mobile-header" class="md:hidden bg-wazos-dark text-white p-4 flex justify-between items-center shadow-md z-20">
+            <div class="flex items-center gap-2">
+                <img src="https://placehold.co/150x150/ffffff/D32F2F?text=WAZOS" class="w-8 h-8 rounded-full border border-white">
+                <h1 class="font-black tracking-wider">WAZOS</h1>
+            </div>
+            <button onclick="toggleMobileMenu()" class="text-2xl"><i class="fas fa-bars"></i></button>
+        </header>
+
+        <!-- Menú Móvil -->
+        <div id="mobile-menu" class="md:hidden fixed inset-0 bg-wazos-dark z-50 transform translate-x-full transition-transform duration-300 flex flex-col">
+            <div class="p-4 flex justify-end">
+                <button onclick="toggleMobileMenu()" class="text-white text-3xl"><i class="fas fa-times"></i></button>
+            </div>
+            <nav class="flex-1 px-6 space-y-4">
+                <button onclick="switchView('dashboard'); toggleMobileMenu()" class="w-full text-left px-4 py-3 bg-wazos-red rounded-lg font-bold text-white"><i class="fas fa-chart-pie w-6"></i> Dashboard</button>
+                <button onclick="switchView('actas'); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-300 font-bold"><i class="fas fa-book-open w-6"></i> Actas & Gastos</button>
+                <button onclick="switchView('profiles'); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-300 font-bold"><i class="fas fa-users w-6"></i> Perfiles Fraternos</button>
+                <button onclick="switchView('add'); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-300 font-bold admin-only hidden"><i class="fas fa-user-plus w-6"></i> Agregar Miembro</button>
+                <button onclick="switchView('payment'); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-300 font-bold admin-only hidden"><i class="fas fa-file-invoice-dollar w-6"></i> Boleta de Pago</button>
+                <button onclick="openBankConfigModal(); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-300 font-bold admin-only hidden"><i class="fas fa-university w-6"></i> Configurar Banco QR</button>
+                <button onclick="toggleAdminModal(); toggleMobileMenu()" class="w-full text-left px-4 py-3 text-gray-400 border-t border-gray-700 mt-4"><i class="fas fa-lock w-6"></i> Seguridad Admin</button>
+            </nav>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-4 md:p-8 w-full" id="main-content">
+            
+            <div id="view-dashboard" class="fade-in max-w-6xl mx-auto space-y-6">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <div>
+                        <h2 class="text-3xl font-black text-wazos-dark uppercase tracking-tight">Diapositiva Financiera</h2>
+                        <p class="text-gray-500 font-medium">Estado general de aportes 2024 - 2026</p>
+                    </div>
+                    <button onclick="triggerPresentationMode()" class="bg-wazos-dark hover:bg-black text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow flex items-center gap-2 transition-transform hover:scale-105">
+                        <i class="fas fa-presentation"></i> Modo Diapositiva
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-2xl"><i class="fas fa-wallet"></i></div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-400 uppercase">Total en Caja</p>
+                            <h3 class="text-3xl font-black text-gray-800" id="dash-caja">Bs 0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-2xl"><i class="fas fa-hand-holding-usd"></i></div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-400 uppercase">Deuda Pendiente</p>
+                            <h3 class="text-3xl font-black text-gray-800" id="dash-deuda">Bs 0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div class="w-14 h-14 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-2xl"><i class="fas fa-users"></i></div>
+                        <div>
+                            <p class="text-sm font-bold text-gray-400 uppercase">Total Fraternos</p>
+                            <h3 class="text-3xl font-black text-gray-800" id="dash-miembros">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-black text-wazos-dark mb-4 uppercase border-b pb-2"><i class="fas fa-exclamation-triangle text-wazos-red"></i> Deudores Activos</h3>
+                        <div class="overflow-y-auto max-h-64 pr-2 space-y-2" id="dash-debtors-list"></div>
+                    </div>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                        <h3 class="text-lg font-black text-wazos-dark mb-4 uppercase border-b pb-2"><i class="fas fa-star text-yellow-500"></i> Nuevos Ingresos (2025 - 2026)</h3>
+                        <div class="overflow-y-auto max-h-64 pr-2 space-y-2" id="dash-new-members"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-actas" class="hidden fade-in max-w-4xl mx-auto space-y-6">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                    <h2 class="text-2xl font-black text-wazos-dark uppercase mb-2"><i class="fas fa-book-open text-wazos-red"></i> Administración de Actas y Caja</h2>
+                    <p class="text-gray-500 text-sm">Control de ingresos brutos, gastos operativos y registros QR de la fraternidad.</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                        <h3 class="font-bold text-gray-700 mb-4 border-b pb-2">Registro de Gastos de Caja</h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="text-xs text-gray-500 block mb-1">Monto del Gasto (Bs)</label>
+                                <input type="number" id="gasto-monto" value="100" class="w-full border rounded-lg p-3 font-bold bg-gray-50 outline-none focus:border-wazos-red">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500 block mb-1">Descripción del Gasto</label>
+                                <input type="text" id="gasto-desc" value="Gastos operativos iniciales" class="w-full border rounded-lg p-3 bg-gray-50 outline-none focus:border-wazos-red font-medium">
+                            </div>
+                            <button onclick="saveGastos()" class="w-full bg-wazos-dark text-white py-3 rounded-lg font-bold admin-only hidden">Actualizar Gasto de Caja</button>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <h3 class="font-bold text-gray-700 mb-4 border-b pb-2">Resumen Financiero Consolidado</h3>
+                            <div class="space-y-3 text-sm">
+                                <div class="flex justify-between py-1 border-b">
+                                    <span class="text-gray-500">Total Aportes Recaudados:</span>
+                                    <span class="font-bold text-green-600" id="actas-ingresos">Bs 0</span>
+                                </div>
+                                <div class="flex justify-between py-1 border-b">
+                                    <span class="text-gray-500">Total Gastos Registrados:</span>
+                                    <span class="font-bold text-red-600" id="actas-gastos">Bs 100</span>
+                                </div>
+                                <div class="flex justify-between py-1 text-lg font-black">
+                                    <span>Saldo Neto en Caja:</span>
+                                    <span class="text-wazos-dark" id="actas-neto">Bs 0</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <button onclick="openQRLogsModal()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-sm flex items-center justify-center gap-2 shadow">
+                                <i class="fas fa-list-alt"></i> Ver Historial de Pagos QR (<span id="qr-log-count">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-profiles" class="hidden fade-in h-full flex flex-col max-w-6xl mx-auto">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-3xl font-black text-wazos-dark uppercase tracking-tight">Perfiles Fraternos</h2>
+                    <button onclick="switchView('add')" class="admin-only hidden bg-wazos-red hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg shadow transition-colors flex items-center gap-2">
+                        <i class="fas fa-user-plus"></i> <span class="hidden sm:inline">Nuevo Fraterno</span>
+                    </button>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                    <div class="w-full lg:w-1/3 bg-white rounded-2xl shadow-sm border border-gray-100 flex flex-col h-full lg:h-[calc(100vh-140px)]">
+                        <div class="p-4 border-b border-gray-100">
+                            <div class="relative">
+                                <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                                <input type="text" id="search-member" placeholder="Buscar fraterno..." class="w-full bg-gray-50 border border-gray-200 rounded-lg py-2 pl-10 pr-4 focus:outline-none focus:border-wazos-red font-medium text-sm" onkeyup="filterMembers()">
+                            </div>
+                        </div>
+                        <div class="flex-1 overflow-y-auto p-2 space-y-1" id="members-list"></div>
+                    </div>
+
+                    <div class="w-full lg:w-2/3 bg-white rounded-2xl shadow-sm border border-gray-100 h-full lg:h-[calc(100vh-140px)] overflow-y-auto hidden relative print-container" id="member-detail">
+                        
+                        <!-- Botones de Acción Superior -->
+                        <div class="absolute top-4 right-4 flex items-center gap-2 no-print z-10">
+                            <button onclick="printProfile()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg shadow text-sm font-bold flex items-center gap-2">
+                                <i class="fas fa-print"></i> Imprimir
+                            </button>
+                            <button onclick="openEditProfile()" class="bg-gray-800 hover:bg-black text-white px-3 py-1.5 rounded-lg shadow text-sm font-bold flex items-center gap-2 admin-only hidden">
+                                <i class="fas fa-edit"></i> Editar
+                            </button>
+                            <button onclick="openDeleteConfirm()" class="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg shadow text-sm font-bold flex items-center justify-center gap-2 admin-only hidden">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+
+                        <div class="bg-wazos-dark text-white p-6 md:p-8 rounded-t-2xl relative">
+                            <div class="flex flex-col md:flex-row items-center gap-6 relative z-10">
+                                <div class="relative group">
+                                    <img id="modal-photo" src="https://placehold.co/150x150/cccccc/ffffff?text=FOTO" class="w-24 h-24 md:w-32 md:h-32 rounded-full object-cover border-4 border-wazos-dark bg-white shadow-xl">
+                                    <label class="absolute inset-0 bg-black/60 rounded-full flex items-center justify-center cursor-pointer opacity-0 group-hover:opacity-100 transition-opacity admin-only hidden">
+                                        <i class="fas fa-camera text-2xl text-white"></i>
+                                        <input type="file" class="hidden" accept="image/*" onchange="updateMemberPhoto(event)">
+                                    </label>
+                                </div>
+                                <div class="text-center md:text-left flex-1">
+                                    <h2 id="modal-name" class="text-2xl md:text-3xl font-black uppercase tracking-tight">NOMBRE APELLIDO</h2>
+                                    <p class="text-gray-400 font-medium mt-1 flex items-center justify-center md:justify-start gap-2">
+                                        <i class="fas fa-calendar-alt text-wazos-red"></i> Ingreso Oficial: <span id="modal-joined" class="text-white font-bold">Ene 2024</span>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-6 md:p-8 bg-gray-50 space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm text-center flex flex-col justify-between">
+                                    <div>
+                                        <h3 class="text-xs font-bold text-gray-400 uppercase mb-2 tracking-widest">Estado de Cuenta</h3>
+                                        <div id="modal-status-badge" class="py-2.5 px-3 rounded-lg font-black text-lg border-2 mb-3"></div>
+                                    </div>
+                                    <button onclick="openQRPaymentModal()" id="btn-qr-pago" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow transition-all text-sm flex items-center justify-center gap-2">
+                                        <i class="fas fa-qrcode"></i> QR PAGO
+                                    </button>
+                                </div>
+                                <div class="bg-white p-5 rounded-xl border border-gray-200 shadow-sm md:col-span-2">
+                                    <h3 class="text-xs font-bold text-gray-400 uppercase mb-3 tracking-widest border-b pb-2">Datos Personales</h3>
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="text-xs text-gray-400 block mb-1"><i class="fas fa-phone"></i> Celular</label>
+                                            <p class="font-bold text-sm text-gray-800" id="text-phone">No registrado</p>
+                                        </div>
+                                        <div>
+                                            <label class="text-xs text-gray-400 block mb-1"><i class="fas fa-birthday-cake"></i> F. Nacimiento</label>
+                                            <p class="font-bold text-sm text-gray-800" id="text-dob">No registrada</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-6">
+                                <h3 class="text-lg font-black text-wazos-dark flex items-center gap-2 uppercase border-b pb-3">
+                                    <i class="fas fa-history text-wazos-red"></i> Histórico y Cuadros Mensuales
+                                </h3>
+                                <div id="modal-yearly-tables" class="space-y-6"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="empty-state" class="w-full lg:w-2/3 bg-white rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-gray-400 p-8 h-full lg:h-[calc(100vh-140px)]">
+                        <i class="fas fa-user-circle text-6xl mb-4 text-gray-300"></i>
+                        <p class="font-bold">Selecciona un fraterno de la lista</p>
+                        <p class="text-sm">Para ver su estado de cuenta y tablas de aportación</p>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-add" class="hidden fade-in max-w-xl mx-auto py-8">
+                <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div class="bg-wazos-dark p-6 text-center border-b-4 border-wazos-red text-white">
+                        <i class="fas fa-user-plus text-3xl mb-2 text-wazos-red"></i>
+                        <h2 class="text-2xl font-black uppercase tracking-wider">Nuevo Fraterno</h2>
+                        <p class="text-gray-400 text-sm">Registrar ingreso a la fraternidad</p>
+                    </div>
+                    <form onsubmit="saveNewMember(event)" class="p-8 space-y-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Nombre Completo</label>
+                            <input type="text" id="new-name" required class="w-full border rounded-xl p-3 bg-gray-50 uppercase font-medium focus:border-wazos-red outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Mes y Año de Ingreso Oficial (Ruedita)</label>
+                            <input type="month" id="new-joined" required value="2024-01" min="2024-01" max="2099-12" class="w-full border rounded-xl p-3 bg-gray-50 font-bold outline-none focus:border-wazos-red">
+                            <p class="text-xs text-gray-500 mt-2"><i class="fas fa-info-circle text-wazos-red"></i> El sistema calcula automáticamente la deuda global (1500 Bs base).</p>
+                        </div>
+                        <button type="submit" class="w-full bg-wazos-red hover:bg-red-700 text-white font-black py-4 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5">
+                            REGISTRAR MIEMBRO
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div id="view-payment" class="hidden fade-in max-w-xl mx-auto py-8">
+                <div class="bg-white rounded-3xl shadow-xl border border-gray-100 overflow-hidden">
+                    <div class="bg-wazos-dark p-6 text-center border-b-4 border-wazos-red text-white">
+                        <i class="fas fa-file-invoice-dollar text-3xl mb-2 text-wazos-red"></i>
+                        <h2 class="text-2xl font-black uppercase tracking-wider">Boleta de Pago</h2>
+                        <p class="text-gray-400 text-sm">Acreditar aportación cronológica</p>
+                    </div>
+                    <form onsubmit="processPayment(event)" class="p-8 space-y-6">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Seleccionar Fraterno</label>
+                            <select id="pay-member" required class="w-full border rounded-xl p-3 bg-gray-50 font-medium outline-none focus:border-wazos-red"></select>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Año de Aplicación</label>
+                                <select id="pay-year" class="w-full border rounded-xl p-3 bg-gray-50 font-bold outline-none">
+                                    <option value="2024">2024</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2026" selected>2026</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-2">Mes</label>
+                                <select id="pay-month" class="w-full border rounded-xl p-3 bg-gray-50 font-bold outline-none">
+                                    <option value="0">Enero</option>
+                                    <option value="1">Febrero</option>
+                                    <option value="2">Marzo</option>
+                                    <option value="3">Abril</option>
+                                    <option value="4">Mayo</option>
+                                    <option value="5">Junio</option>
+                                    <option value="6">Julio</option>
+                                    <option value="7">Agosto</option>
+                                    <option value="8">Septiembre</option>
+                                    <option value="9">Octubre</option>
+                                    <option value="10">Noviembre</option>
+                                    <option value="11">Diciembre</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-2">Monto a Cancelar (Bs)</label>
+                            <div class="relative">
+                                <span class="absolute left-4 top-3.5 text-gray-500 font-bold">Bs</span>
+                                <input type="number" id="pay-amount" required min="1" class="w-full border rounded-xl p-3.5 pl-12 bg-gray-50 font-black text-2xl text-wazos-dark outline-none focus:border-wazos-red">
+                            </div>
+                            <p class="text-xs text-gray-500 mt-2"><i class="fas fa-lightbulb text-yellow-500"></i> Los pagos se aplican cronológicamente respetando los límites anuales (2024 y 2025 = 600 Bs; 2026 = 300 Bs).</p>
+                        </div>
+                        <button type="submit" class="w-full bg-wazos-red hover:bg-red-700 text-white font-black text-lg py-4 rounded-xl shadow-lg transition-transform transform hover:-translate-y-0.5">
+                            REGISTRAR Y SALDAR CUENTA
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    
+    <!-- Modal Admin Password -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex justify-center items-center backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full shadow-2xl">
+            <div class="text-center mb-6">
+                <i class="fas fa-lock text-4xl text-wazos-dark mb-2"></i>
+                <h3 class="text-xl font-black text-wazos-dark">Modo Administrador</h3>
+                <p class="text-gray-500 text-sm">Ingresa la contraseña para editar el sistema.</p>
+            </div>
+            <input type="password" id="admin-password" placeholder="Contraseña..." class="w-full border-2 border-gray-200 rounded-lg p-3 text-center mb-4 font-bold tracking-widest outline-none focus:border-wazos-dark">
+            <div class="flex gap-3">
+                <button onclick="toggleAdminModal()" class="flex-1 py-2.5 bg-gray-200 text-gray-700 font-bold rounded-lg">Cancelar</button>
+                <button onclick="checkAdmin()" class="flex-1 py-2.5 bg-wazos-dark text-white font-bold rounded-lg">Desbloquear</button>
+            </div>
+            <p id="admin-error" class="text-red-500 text-xs text-center mt-3 hidden font-bold">Contraseña incorrecta</p>
+        </div>
+    </div>
+
+    <!-- Modal Editar Perfil -->
+    <div id="edit-profile-modal" class="fixed inset-0 bg-black/60 z-50 hidden flex justify-center items-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden">
+            <div class="bg-wazos-dark p-6 text-white text-center">
+                <h3 class="text-xl font-black uppercase"><i class="fas fa-edit"></i> Editar Datos de Fraterno</h3>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Nombre Completo</label>
+                    <input type="text" id="edit-modal-name" class="w-full border rounded-lg p-2.5 font-bold uppercase bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Ingreso (Ruedita)</label>
+                    <input type="month" id="edit-modal-joined" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Celular</label>
+                    <input type="text" id="edit-modal-phone" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50" placeholder="Ej: 70000000">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Fecha de Nacimiento</label>
+                    <input type="date" id="edit-modal-dob" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50">
+                </div>
+                <div class="flex gap-3 pt-4 border-t">
+                    <button onclick="closeEditProfile()" class="flex-1 py-2.5 bg-gray-200 font-bold rounded-lg">Cancelar</button>
+                    <button onclick="saveProfileEdits()" class="flex-1 py-2.5 bg-wazos-red text-white font-bold rounded-lg">Guardar Cambios</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Confirmar Eliminación -->
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-black/60 z-[60] hidden flex justify-center items-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl text-center">
+            <i class="fas fa-exclamation-triangle text-5xl text-red-600 mb-4"></i>
+            <h3 class="text-xl font-bold text-gray-900 mb-2">¿Eliminar Fraterno?</h3>
+            <p class="text-gray-600 mb-6 text-sm">Esta acción borrará todo el historial de este fraterno permanentemente.</p>
+            <div class="flex justify-center gap-3">
+                <button onclick="closeDeleteConfirm()" class="px-5 py-2 bg-gray-200 rounded-lg font-bold">Cancelar</button>
+                <button onclick="executeDeleteMember()" class="px-5 py-2 bg-red-600 text-white rounded-lg font-bold">Sí, Eliminar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal QR Pago & Banco con Monto Editable y Distribución Cronológica -->
+    <div id="qr-modal" class="fixed inset-0 bg-black/80 z-[70] hidden flex justify-center items-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl text-center relative max-h-[90vh] overflow-y-auto">
+            <button onclick="closeQRPaymentModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl"><i class="fas fa-times"></i></button>
+            <div class="bg-blue-600 text-white py-2 px-4 rounded-xl mb-3 inline-block font-black text-sm"><i class="fas fa-qrcode"></i> QR PAGO BANCARIO</div>
+            <h3 class="text-xl font-black text-wazos-dark uppercase" id="qr-member-title">FRATERNO</h3>
+            <p class="text-gray-500 text-xs mb-3">Escanee el código QR o registre el pago realizado</p>
+            
+            <div class="bg-white p-3 rounded-2xl border-2 border-dashed border-blue-200 mb-3 inline-block shadow-inner">
+                <img id="bank-qr-img" src="https://placehold.co/180x180?text=Cargando+QR+Banco..." class="w-44 h-44 mx-auto rounded-lg object-contain">
+            </div>
+            
+            <div class="text-left bg-blue-50 text-blue-900 p-4 rounded-xl text-sm mb-4 border border-blue-100 space-y-2">
+                <p class="font-black border-b border-blue-200 pb-1 mb-1"><i class="fas fa-university"></i> Datos Bancarios Oficiales:</p>
+                <p><b>Banco:</b> <span id="bank-name-display">Banco Nacional de Bolivia (BNB)</span></p>
+                <p><b>Nro. Cuenta:</b> <span id="bank-acc-display">100000123456</span></p>
+                <p><b>Titular:</b> <span id="bank-holder-display">Fraternidad Wazos</span></p>
+                
+                <div class="mt-3 pt-2 border-t border-blue-200">
+                    <label class="block text-xs font-bold text-blue-800 uppercase mb-1">Monto a Cancelar (Editable - Bs):</label>
+                    <div class="relative">
+                        <span class="absolute left-3 top-2.5 font-black text-blue-700">Bs</span>
+                        <input type="number" id="qr-payment-editable-amount" class="w-full border-2 border-blue-300 rounded-lg p-2 pl-10 text-xl font-black text-blue-900 bg-white focus:outline-none focus:border-blue-600" min="1">
+                    </div>
+                    <p class="text-[11px] text-gray-500 mt-1">Deuda pendiente calculada: <b>Bs <span id="qr-debt-amount">0</span></b> (Se aplicará cronológicamente desde 2024).</p>
+                </div>
+            </div>
+            
+            <div class="flex gap-2">
+                <button onclick="closeQRPaymentModal()" class="flex-1 py-3 bg-gray-200 hover:bg-gray-300 rounded-xl font-bold text-gray-700 text-sm">Cerrar</button>
+                <button onclick="processQRElectronicPayment()" class="flex-1 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black text-sm shadow-md flex items-center justify-center gap-2">
+                    <i class="fas fa-check-circle"></i> Registrar Pago
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Registros Historial QR -->
+    <div id="qr-logs-modal" class="fixed inset-0 bg-black/60 z-[75] hidden flex justify-center items-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-2xl w-full shadow-2xl relative max-h-[85vh] flex flex-col">
+            <button onclick="closeQRLogsModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl"><i class="fas fa-times"></i></button>
+            <div class="flex items-center gap-3 mb-4 border-b pb-3">
+                <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-lg"><i class="fas fa-list-alt"></i></div>
+                <div>
+                    <h3 class="text-xl font-black text-wazos-dark uppercase">Historial de Pagos QR</h3>
+                    <p class="text-xs text-gray-500">Registro detallado de transacciones electrónicas realizadas</p>
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto pr-1">
+                <div id="qr-logs-container" class="space-y-3"></div>
+            </div>
+            <div class="mt-4 pt-3 border-t text-right">
+                <button onclick="closeQRLogsModal()" class="px-6 py-2.5 bg-gray-800 text-white font-bold rounded-xl text-sm">Cerrar Ventana</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Configuración Banco (Admin) -->
+    <div id="bank-config-modal" class="fixed inset-0 bg-black/60 z-[70] hidden flex justify-center items-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl relative">
+            <button onclick="closeBankConfigModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl"><i class="fas fa-times"></i></button>
+            <h3 class="text-xl font-black text-wazos-dark mb-4"><i class="fas fa-university text-blue-600"></i> Configurar Cuenta y QR Bancario</h3>
+            <div class="space-y-4 text-sm">
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Nombre del Banco</label>
+                    <input type="text" id="cfg-bank-name" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50">
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Número de Cuenta</label>
+                    <input type="text" id="cfg-bank-acc" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50">
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Titular de la Cuenta</label>
+                    <input type="text" id="cfg-bank-holder" class="w-full border rounded-lg p-2.5 font-bold bg-gray-50">
+                </div>
+                <div>
+                    <label class="block font-bold text-gray-700 mb-1">Imagen QR del Banco (Subir foto)</label>
+                    <input type="file" id="cfg-bank-qr-file" accept="image/*" class="w-full border rounded-lg p-2 bg-gray-50 text-xs">
+                </div>
+                <div class="flex gap-3 pt-4 border-t">
+                    <button onclick="closeBankConfigModal()" class="flex-1 py-2.5 bg-gray-200 font-bold rounded-lg">Cancelar</button>
+                    <button onclick="saveBankConfig()" class="flex-1 py-2.5 bg-blue-600 text-white font-bold rounded-lg">Guardar Datos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const emptyYear = () => [0,0,0,0,0,0,0,0,0,0,0,0];
+        
+        let members = [
+            { id: 1, name: "MARCELO VILLARROEL", joined: "2024-01", phone: "70000001", dob: "1990-05-12", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,100,100,100,100,100,100,0,0,0,0], 2026: [100,0,0,100,0,100,0,0,0,0,0,0] } },
+            { id: 2, name: "MAURICIO VISCARRA", joined: "2024-01", phone: "70000002", dob: "1992-08-20", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,100,100,100,100,100,100,0,0,0,0], 2026: [100,0,0,100,0,0,0,0,0,0,0,0] } },
+            { id: 3, name: "LUIS SANDOVAL", joined: "2024-01", phone: "70000003", dob: "1988-03-15", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,100,100,100,100,100,250,0,0,0,0], 2026: emptyYear() } },
+            { id: 4, name: "RODRIGO RIBERA", joined: "2024-01", phone: "70000004", dob: "1991-11-05", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,0,100,100,100,100,100,0,0,0,0], 2026: [100,0,0,100,0,100,0,0,0,0,0,0] } },
+            { id: 5, name: "OSCAR VISCARRA", joined: "2024-01", phone: "70000005", dob: "1989-07-22", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,300,100,0,100,100,100,0,0,0,0], 2026: emptyYear() } },
+            { id: 6, name: "ARIEL LEDEZMA", joined: "2024-01", phone: "70000006", dob: "1993-01-10", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,100,100,0,100,0,0,0,0,0,0], 2026: [0,0,0,100,0,100,0,0,0,0,0,0] } },
+            { id: 7, name: "RAUL SOLIZ", joined: "2024-01", phone: "70000007", dob: "1987-09-30", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: emptyYear(), 2026: emptyYear() } },
+            { id: 8, name: "GABRIEL LOMA", joined: "2024-01", phone: "70000008", dob: "1994-12-04", photo: "", payments: { 2024: [0,50,50,100,100,100,0,0,100,100,0,0], 2025: [0,0,50,100,0,0,0,0,0,0,0,0], 2026: emptyYear() } },
+            { id: 9, name: "JAIME VILLARREAL", joined: "2025-03", phone: "70000009", dob: "1990-02-18", photo: "", payments: { 2024: emptyYear(), 2025: [0,0,100,100,650,100,100,100,0,0,0,0], 2026: [100,0,0,0,0,0,0,0,0,0,0,0] } },
+            { id: 10, name: "CRISTOBAL SALAZAR", joined: "2026-01", phone: "70000010", dob: "1995-06-25", photo: "", payments: { 2024: emptyYear(), 2025: emptyYear(), 2026: [300,0,0,300,0,0,0,0,0,0,0,0] } },
+            { id: 11, name: "EVER TORREZ", joined: "2026-01", phone: "70000011", dob: "1992-10-14", photo: "", payments: { 2024: emptyYear(), 2025: emptyYear(), 2026: [100,0,0,100,0,0,0,0,0,0,0,0] } },
+            { id: 12, name: "ANDRES TORREZ", joined: "2026-01", phone: "70000012", dob: "1991-04-03", photo: "", payments: { 2024: emptyYear(), 2025: emptyYear(), 2026: emptyYear() } },
+            { id: 13, name: "EDSON MENDEZ", joined: "2026-01", phone: "70000013", dob: "1989-08-19", photo: "", payments: { 2024: emptyYear(), 2025: emptyYear(), 2026: emptyYear() } }
+        ];
+
+        let totalGastos = 100;
+        let isAdmin = false;
+        let currentMemberId = null;
+        let bankConfig = {
+            name: "Banco Nacional de Bolivia (BNB)",
+            account: "100000123456",
+            holder: "Fraternidad Wazos",
+            qrImg: ""
+        };
+        let qrPaymentLogs = [];
+
+        const monthNames = ["ENE", "FEB", "MAR", "ABR", "MAY", "JUN", "JUL", "AGO", "SEP", "OCT", "NOV", "DIC"];
+        const fullMonthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+
+        window.onload = () => {
+            renderDashboard();
+            renderProfilesList();
+            populatePaymentSelect();
+            updateActasUI();
+            renderQRLogs();
+        };
+
+        function switchView(viewId) {
+            ['view-dashboard', 'view-actas', 'view-profiles', 'view-add', 'view-payment'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+            });
+            document.getElementById(`view-${viewId}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('bg-wazos-red', 'text-white', 'shadow-md');
+                btn.classList.add('text-gray-300', 'hover:bg-gray-800');
+            });
+            const activeBtn = document.getElementById(`nav-${viewId}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('text-gray-300', 'hover:bg-gray-800');
+                activeBtn.classList.add('bg-wazos-red', 'text-white', 'shadow-md');
+            }
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobile-menu').classList.toggle('translate-x-full');
+        }
+
+        function sumArr(arr) { return arr ? arr.reduce((a,b) => a + (Number(b)||0), 0) : 0; }
+
+        function formatJoinedDate(str) {
+            if(!str) return "Ene 2024";
+            const [y, m] = str.split('-');
+            const mIdx = parseInt(m) - 1;
+            return `${fullMonthNames[mIdx] || 'Ene'} ${y}`;
+        }
+
+        function calculateExpectedTotal(joinedStr) {
+            return 1500;
+        }
+
+        function renderDashboard() {
+            let totalCaja = 0;
+            let totalDeuda = 0;
+            let debtors = [];
+            let newMembers = [];
+
+            members.forEach(m => {
+                const paid = sumArr(m.payments[2024]) + sumArr(m.payments[2025]) + sumArr(m.payments[2026]);
+                totalCaja += paid;
+
+                const expected = calculateExpectedTotal(m.joined);
+                const debt = expected - paid;
+                
+                if (debt > 0) debtors.push({ name: m.name, debt: debt });
+                const year = parseInt(m.joined.split('-')[0]);
+                if (year >= 2025) newMembers.push(m);
+            });
+
+            totalCaja -= totalGastos;
+            document.getElementById('dash-caja').innerText = `Bs ${totalCaja.toLocaleString()}`;
+            document.getElementById('dash-miembros').innerText = members.length;
+
+            debtors.sort((a,b) => b.debt - a.debt);
+            totalDeuda = debtors.reduce((sum, d) => sum + d.debt, 0);
+            document.getElementById('dash-deuda').innerText = `Bs ${totalDeuda.toLocaleString()}`;
+
+            document.getElementById('dash-debtors-list').innerHTML = debtors.length === 0 ? 
+                `<p class="text-gray-400 text-sm italic">Todos los fraternos están al día.</p>` :
+                debtors.map(d => `
+                <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 text-sm">
+                    <span class="font-bold text-gray-700">${d.name}</span>
+                    <span class="text-red-600 font-black">Bs ${d.debt}</span>
+                </div>`).join('');
+
+            document.getElementById('dash-new-members').innerHTML = newMembers.length === 0 ?
+                `<p class="text-gray-400 text-sm italic">Sin nuevos ingresos registrados.</p>` :
+                newMembers.map(n => `
+                <div class="flex justify-between items-center py-2 border-b border-gray-100 last:border-0 text-sm">
+                    <span class="font-bold text-gray-700">${n.name}</span>
+                    <span class="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded font-bold">${formatJoinedDate(n.joined)}</span>
+                </div>`).join('');
+
+            updateActasUI();
+        }
+
+        function updateActasUI() {
+            let totalIngresos = members.reduce((sum, m) => sum + sumArr(m.payments[2024]) + sumArr(m.payments[2025]) + sumArr(m.payments[2026]), 0);
+            document.getElementById('actas-ingresos').innerText = `Bs ${totalIngresos.toLocaleString()}`;
+            document.getElementById('actas-gastos').innerText = `Bs ${totalGastos.toLocaleString()}`;
+            document.getElementById('actas-neto').innerText = `Bs ${(totalIngresos - totalGastos).toLocaleString()}`;
+            document.getElementById('qr-log-count').innerText = qrPaymentLogs.length;
+        }
+
+        function saveGastos() {
+            totalGastos = parseFloat(document.getElementById('gasto-monto').value) || 0;
+            renderDashboard();
+            alert("Gastos de caja actualizados con éxito.");
+        }
+
+        function renderProfilesList(filterText = "") {
+            const container = document.getElementById('members-list');
+            container.innerHTML = "";
+            const filtered = members.filter(m => m.name.includes(filterText.toUpperCase()));
+            
+            filtered.forEach(m => {
+                const btn = document.createElement('button');
+                btn.className = `w-full text-left p-3 rounded-xl transition-all flex items-center gap-3 ${currentMemberId === m.id ? 'bg-wazos-dark text-white shadow-md' : 'hover:bg-gray-100 text-gray-700'}`;
+                btn.onclick = () => selectMember(m.id);
+                
+                const initials = m.name.substring(0, 2);
+                const imgStr = m.photo ? `<img src="${m.photo}" class="w-10 h-10 rounded-full object-cover border">` : 
+                                       `<div class="w-10 h-10 rounded-full ${currentMemberId === m.id ? 'bg-wazos-red text-white' : 'bg-gray-200 text-gray-600'} flex items-center justify-center font-bold text-sm">${initials}</div>`;
+                
+                btn.innerHTML = `
+                    ${imgStr}
+                    <div class="flex-1 truncate">
+                        <p class="font-bold text-sm truncate">${m.name}</p>
+                        <p class="text-xs ${currentMemberId === m.id ? 'text-gray-300' : 'text-gray-400'}"><i class="fas fa-sign-in-alt"></i> ${formatJoinedDate(m.joined)}</p>
+                    </div>`;
+                container.appendChild(btn);
+            });
+        }
+
+        function filterMembers() {
+            renderProfilesList(document.getElementById('search-member').value);
+        }
+
+        function selectMember(id) {
+            currentMemberId = id;
+            document.getElementById('empty-state').classList.add('hidden');
+            document.getElementById('member-detail').classList.remove('hidden');
+            renderProfilesList(document.getElementById('search-member').value);
+            
+            const m = members.find(x => x.id === id);
+            document.getElementById('modal-name').innerText = m.name;
+            document.getElementById('modal-joined').innerText = formatJoinedDate(m.joined);
+            document.getElementById('modal-photo').src = m.photo || 'https://placehold.co/150x150/cccccc/ffffff?text=FOTO';
+            
+            document.getElementById('text-phone').innerText = m.phone || "No registrado";
+            document.getElementById('text-dob').innerText = m.dob || "No registrada";
+
+            const expected = calculateExpectedTotal(m.joined);
+            const paid = sumArr(m.payments[2024]) + sumArr(m.payments[2025]) + sumArr(m.payments[2026]);
+            const debt = expected - paid;
+
+            const statusEl = document.getElementById('modal-status-badge');
+            if (debt <= 0) {
+                statusEl.innerHTML = "<i class='fas fa-check-circle'></i> AL DÍA";
+                statusEl.className = "py-2.5 px-3 rounded-lg font-black text-lg border-2 bg-green-100 text-green-700 border-green-200 mb-3 text-center";
+            } else {
+                statusEl.innerHTML = `<i class='fas fa-times-circle'></i> DEUDA: Bs ${debt}`;
+                statusEl.className = "py-2.5 px-3 rounded-lg font-black text-lg border-2 bg-red-100 text-red-700 border-red-200 mb-3 text-center";
+            }
+
+            let tablesHtml = '';
+            [2024, 2025, 2026].forEach(year => {
+                const yearTarget = (year === 2026) ? 300 : 600;
+                const yearPaid = sumArr(m.payments[year]);
+                const isPaid = yearPaid >= yearTarget;
+
+                tablesHtml += `
+                <div class="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <div class="bg-gray-100 p-3 flex justify-between items-center border-b">
+                        <span class="font-black text-wazos-dark">Gestión ${year} (Aportado: Bs ${yearPaid} / Meta: Bs ${yearTarget})</span>
+                        <span class="px-2.5 py-1 rounded text-xs font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            ${isPaid ? 'PAGADO' : 'PENDIENTE'}
+                        </span>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-xs text-center border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500">
+                                    ${monthNames.map(mes => `<th class="p-2 border-r last:border-0">${mes}.</th>`).join('')}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    ${m.payments[year].map((val, i) => `
+                                        <td class="p-2 border-r border-t last:border-r-0">
+                                            ${isAdmin ? `<input type="number" min="0" value="${val}" class="w-12 text-center font-bold bg-yellow-50 border rounded p-1" onchange="updateMonthCell(${id}, ${year}, ${i}, this.value)">` : 
+                                            `<span class="${val > 0 ? 'font-bold text-gray-800' : 'text-gray-300'}">${val}</span>`}
+                                        </td>
+                                    `).join('')}
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>`;
+            });
+            document.getElementById('modal-yearly-tables').innerHTML = tablesHtml;
+        }
+
+        function updateMonthCell(memberId, year, monthIdx, val) {
+            const m = members.find(x => x.id === memberId);
+            if(m) {
+                m.payments[year][monthIdx] = parseFloat(val) || 0;
+                selectMember(memberId);
+                renderDashboard();
+            }
+        }
+
+        function triggerPresentationMode() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            switchView('dashboard');
+        }
+
+        function printProfile() {
+            window.print();
+        }
+
+        function openQRPaymentModal() {
+            if(!currentMemberId) return;
+            const m = members.find(x => x.id === currentMemberId);
+            const expected = calculateExpectedTotal(m.joined);
+            const paid = sumArr(m.payments[2024]) + sumArr(m.payments[2025]) + sumArr(m.payments[2026]);
+            const debt = Math.max(0, expected - paid);
+
+            document.getElementById('qr-member-title').innerText = m.name;
+            document.getElementById('qr-debt-amount').innerText = debt.toLocaleString();
+            document.getElementById('qr-payment-editable-amount').value = debt > 0 ? debt : 100;
+            
+            document.getElementById('bank-name-display').innerText = bankConfig.name;
+            document.getElementById('bank-acc-display').innerText = bankConfig.account;
+            document.getElementById('bank-holder-display').innerText = bankConfig.holder;
+
+            const qrImgEl = document.getElementById('bank-qr-img');
+            if(bankConfig.qrImg) {
+                qrImgEl.src = bankConfig.qrImg;
+            } else {
+                const qrText = `PAGO WAZOS\nFraterno: ${m.name}\nBanco: ${bankConfig.name}\nCuenta: ${bankConfig.account}`;
+                qrImgEl.src = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrText)}`;
+            }
+
+            document.getElementById('qr-modal').classList.remove('hidden');
+        }
+
+        function closeQRPaymentModal() {
+            document.getElementById('qr-modal').classList.add('hidden');
+        }
+
+        function processQRElectronicPayment() {
+            if(!currentMemberId) return;
+            const m = members.find(x => x.id === currentMemberId);
+            let amountToApply = parseFloat(document.getElementById('qr-payment-editable-amount').value) || 0;
+            
+            if (amountToApply <= 0) {
+                alert("Por favor ingrese un monto válido mayor a 0.");
+                return;
+            }
+
+            let initialAmount = amountToApply;
+            let appliedDetails = [];
+            const years = [2024, 2025, 2026];
+            
+            // Allocate ascending / chronologically starting from 2024
+            for (let y of years) {
+                if (amountToApply <= 0) break;
+                for (let mIdx = 0; mIdx < 12; mIdx++) {
+                    if (amountToApply <= 0) break;
+                    let monthExpected = (y === 2024 && (mIdx === 0 || mIdx === 1)) ? 50 : 100;
+                    let monthPaid = m.payments[y][mIdx] || 0;
+                    let monthDebt = Math.max(0, monthExpected - monthPaid);
+
+                    if (monthDebt > 0) {
+                        let payForThisMonth = Math.min(amountToApply, monthDebt);
+                        m.payments[y][mIdx] = monthPaid + payForThisMonth;
+                        amountToApply -= payForThisMonth;
+                        appliedDetails.push(`Bs ${payForThisMonth} (${monthNames[mIdx]} ${y})`);
+                    }
+                }
+            }
+
+            // If any excess amount remains, credit to the latest available month
+            if (amountToApply > 0) {
+                m.payments[2026][11] = (m.payments[2026][11] || 0) + amountToApply;
+                appliedDetails.push(`Bs ${amountToApply} (Adelanto)`);
+            }
+
+            // Record transaction in QR logs
+            const transaction = {
+                id: Date.now(),
+                date: new Date().toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+                memberName: m.name,
+                amount: initialAmount,
+                bank: bankConfig.name,
+                details: appliedDetails.join(', ')
+            };
+            qrPaymentLogs.unshift(transaction);
+
+            closeQRPaymentModal();
+            alert(`¡Pago de Bs ${initialAmount} procesado y distribuido cronológicamente para ${m.name} con éxito!`);
+            
+            selectMember(currentMemberId);
+            renderDashboard();
+            renderQRLogs();
+        }
+
+        function openQRLogsModal() {
+            renderQRLogs();
+            document.getElementById('qr-logs-modal').classList.remove('hidden');
+        }
+
+        function closeQRLogsModal() {
+            document.getElementById('qr-logs-modal').classList.add('hidden');
+        }
+
+        function renderQRLogs() {
+            const container = document.getElementById('qr-logs-container');
+            if(!container) return;
+
+            if (qrPaymentLogs.length === 0) {
+                container.innerHTML = `<p class="text-gray-400 text-center py-6 text-sm italic">No hay registros de pagos QR electrónicos todavía.</p>`;
+                return;
+            }
+
+            container.innerHTML = qrPaymentLogs.map(log => `
+                <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="bg-blue-100 text-blue-700 font-black text-xs px-2.5 py-1 rounded-md"><i class="fas fa-qrcode"></i> QR</span>
+                            <h4 class="font-black text-wazos-dark">${log.memberName}</h4>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1"><i class="fas fa-calendar-alt"></i> ${log.date} &bull; <b>Banco:</b> ${log.bank}</p>
+                        <p class="text-xs text-emerald-700 font-medium mt-1"><i class="fas fa-check-circle"></i> Aplicado: ${log.details}</p>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-xs text-gray-400 block uppercase font-bold">Monto Pagado</span>
+                        <span class="text-xl font-black text-green-600">Bs ${log.amount.toLocaleString()}</span>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openBankConfigModal() {
+            document.getElementById('cfg-bank-name').value = bankConfig.name;
+            document.getElementById('cfg-bank-acc').value = bankConfig.account;
+            document.getElementById('cfg-bank-holder').value = bankConfig.holder;
+            document.getElementById('bank-config-modal').classList.remove('hidden');
+        }
+
+        function closeBankConfigModal() {
+            document.getElementById('bank-config-modal').classList.add('hidden');
+        }
+
+        function saveBankConfig() {
+            bankConfig.name = document.getElementById('cfg-bank-name').value;
+            bankConfig.account = document.getElementById('cfg-bank-acc').value;
+            bankConfig.holder = document.getElementById('cfg-bank-holder').value;
+            
+            const fileInput = document.getElementById('cfg-bank-qr-file');
+            if(fileInput.files && fileInput.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    bankConfig.qrImg = e.target.result;
+                    closeBankConfigModal();
+                    alert("Datos bancarios y QR guardados con éxito.");
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } else {
+                closeBankConfigModal();
+                alert("Datos bancarios guardados con éxito.");
+            }
+        }
+
+        function populatePaymentSelect() {
+            const select = document.getElementById('pay-member');
+            select.innerHTML = '<option value="">Seleccione fraterno...</option>';
+            members.forEach(m => { select.innerHTML += `<option value="${m.id}">${m.name}</option>`; });
+        }
+
+        function processPayment(e) {
+            e.preventDefault();
+            const memberId = parseInt(document.getElementById('pay-member').value);
+            const year = parseInt(document.getElementById('pay-year').value);
+            const month = parseInt(document.getElementById('pay-month').value);
+            const amount = parseFloat(document.getElementById('pay-amount').value);
+
+            const m = members.find(x => x.id === memberId);
+            if(!m) return;
+
+            m.payments[year][month] += amount;
+            
+            alert(`Pago de Bs ${amount} registrado correctamente para ${m.name}.`);
+            document.getElementById('pay-amount').value = "";
+            renderDashboard();
+            if(currentMemberId === memberId) selectMember(memberId);
+            switchView('dashboard');
+        }
+
+        function saveNewMember(e) {
+            e.preventDefault();
+            const name = document.getElementById('new-name').value.trim().toUpperCase();
+            const joined = document.getElementById('new-joined').value;
+            if(!name || !joined) return;
+
+            const newId = members.length > 0 ? Math.max(...members.map(x => x.id)) + 1 : 1;
+            members.push({
+                id: newId,
+                name: name,
+                joined: joined,
+                phone: "",
+                dob: "",
+                photo: "",
+                payments: { 2024: emptyYear(), 2025: emptyYear(), 2026: emptyYear() }
+            });
+
+            alert(`Fraterno ${name} registrado con éxito.`);
+            document.getElementById('new-name').value = "";
+            renderProfilesList();
+            renderDashboard();
+            populatePaymentSelect();
+            switchView('profiles');
+        }
+
+        function openEditProfile() {
+            if(!currentMemberId) return;
+            const m = members.find(x => x.id === currentMemberId);
+            document.getElementById('edit-modal-name').value = m.name;
+            document.getElementById('edit-modal-joined').value = m.joined;
+            document.getElementById('edit-modal-phone').value = m.phone || "";
+            document.getElementById('edit-modal-dob').value = m.dob || "";
+            document.getElementById('edit-profile-modal').classList.remove('hidden');
+        }
+
+        function closeEditProfile() {
+            document.getElementById('edit-profile-modal').classList.add('hidden');
+        }
+
+        function saveProfileEdits() {
+            const m = members.find(x => x.id === currentMemberId);
+            if(m) {
+                m.name = document.getElementById('edit-modal-name').value.trim().toUpperCase();
+                m.joined = document.getElementById('edit-modal-joined').value;
+                m.phone = document.getElementById('edit-modal-phone').value;
+                m.dob = document.getElementById('edit-modal-dob').value;
+                closeEditProfile();
+                selectMember(currentMemberId);
+                renderProfilesList();
+                renderDashboard();
+            }
+        }
+
+        function updateMemberPhoto(e) {
+            const file = e.target.files[0];
+            if(file && currentMemberId) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    members.find(x => x.id === currentMemberId).photo = ev.target.result;
+                    selectMember(currentMemberId);
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function triggerLogoUpload() { if(isAdmin) document.getElementById('logo-upload').click(); }
+        function handleLogoChange(e) {
+            const file = e.target.files[0];
+            if(file) {
+                const reader = new FileReader();
+                reader.onload = (ev) => document.getElementById('main-logo').src = ev.target.result;
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function openDeleteConfirm() { document.getElementById('delete-confirm-modal').classList.remove('hidden'); }
+        function closeDeleteConfirm() { document.getElementById('delete-confirm-modal').classList.add('hidden'); }
+        function executeDeleteMember() {
+            members = members.filter(x => x.id !== currentMemberId);
+            currentMemberId = null;
+            closeDeleteConfirm();
+            document.getElementById('member-detail').classList.add('hidden');
+            document.getElementById('empty-state').classList.remove('hidden');
+            renderProfilesList();
+            renderDashboard();
+            populatePaymentSelect();
+            alert("Fraterno eliminado correctamente.");
+        }
+
+        function toggleAdminModal() {
+            if (isAdmin) {
+                isAdmin = false;
+                updateAdminUI();
+                alert("Modo Vista activado.");
+            } else {
+                document.getElementById('admin-password').value = "";
+                document.getElementById('admin-error').classList.add('hidden');
+                document.getElementById('admin-modal').classList.remove('hidden');
+            }
+        }
+
+        function checkAdmin() {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === "wazos2026") {
+                isAdmin = true;
+                document.getElementById('admin-modal').classList.add('hidden');
+                updateAdminUI();
+                alert("Modo Administrador activado.");
+            } else {
+                document.getElementById('admin-error').classList.remove('hidden');
+            }
+        }
+
+        function updateAdminUI() {
+            document.getElementById('lock-icon').className = isAdmin ? "fas fa-unlock text-wazos-red" : "fas fa-lock";
+            document.getElementById('lock-text').innerText = isAdmin ? "Modo Administrador" : "Modo Vista";
+            
+            document.querySelectorAll('.admin-only').forEach(el => {
+                isAdmin ? el.classList.remove('hidden') : el.classList.add('hidden');
+            });
+            if(currentMemberId) selectMember(currentMemberId);
+            renderDashboard();
+        }
+    </script>
+</body>
+</html>
